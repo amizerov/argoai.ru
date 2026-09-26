@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import ChatPopup from "@/components/ChatPopup";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -31,5 +32,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#050608" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="ru" className={`${geistSans.variable} ${geistMono.variable}`}><body>{children}</body></html>;
+  return <html lang="ru" className={`${geistSans.variable} ${geistMono.variable}`}><body>{children}<ChatPopup /></body></html>;
 }

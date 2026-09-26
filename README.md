@@ -20,6 +20,55 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Chat popup
+
+The root layout includes `components/ChatPopup.tsx`, which loads
+`/chat-popup-widget/dist/chat-popup.iife.js` from the local `public` directory and calls
+`window.mountChatPopup()` when the script is ready, with a guard against duplicate
+mounts. The widget's own styles fix its launcher to the bottom-right corner with
+a 20 px inset. A prebuilt bundle is included in `public/chat-popup-widget/dist/`.
+
+Before development and production builds, `npm run widget:publish` copies the
+complete `chat-popup-widget/dist/` directory when widget sources have been built
+locally, or uses the existing public bundle when that source bundle is absent.
+
+To serve the widget from this Next.js application while preserving existing embeds,
+copy the widget's complete `dist` directory (including any CSS and other assets) to
+`public/chat-popup-widget/dist/` before building and deploying. Next.js serves
+`public/chat-popup-widget/dist/chat-popup.iife.js` at
+`/chat-popup-widget/dist/chat-popup.iife.js`; do not include `public` in the URL.
+
+If the web server already serves `/chat-popup-widget/` from a separate directory,
+keep that static route when configuring the proxy to Next.js. In that setup the
+bundle does not need to be copied into this repository. Preserve any separate chat
+API routes as well; serving the JavaScript file alone does not provide the backend.
+
+For example, with Nginx, keep a dedicated static location inside the existing
+HTTPS `server` block alongside the proxy location:
+
+```nginx
+location ^~ /chat-popup-widget/ {
+    alias /absolute/path/to/chat-popup-widget/;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Replace the example filesystem path and upstream port with the server's actual
+values. Keep both trailing slashes in the static location and alias; the alias
+directory must contain `dist/chat-popup.iife.js`. Retain existing MIME type
+configuration so `.js` files are served as JavaScript.
+
+The script URL is relative to the current origin, so local development loads the
+local bundle. After deployment, verify that the URL returns JavaScript (not an HTML page
+or a 404), then open the site and check that the chat opens and can send a message.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

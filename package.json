@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "widget:publish": "node scripts/publish-chat-widget.mjs",
+    "predev": "npm run widget:publish",
     "dev": "next dev",
+    "prebuild": "npm run widget:publish",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
