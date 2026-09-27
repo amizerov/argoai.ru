@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ContactFormButton } from "@/components/ContactFormButton";
 import { Reveal } from "@/components/ui/Reveal";
 import styles from "./OneCServices.module.css";
 
@@ -9,8 +9,6 @@ const services = [
   { title: "Обмен данными", text: "Настройка и исправление обменов с сайтом и другими системами." },
 ];
 
-const contactHref = `mailto:hello@argoai.ru?subject=${encodeURIComponent("Задача по 1С")}&body=${encodeURIComponent("Конфигурация и версия 1С: \r\nЧто нужно сделать: \r\nЖелаемый срок: \r\n")}`;
-
 export function OneCServices() {
   return (
     <section id="1c" aria-labelledby="one-c-title" className={styles.section}>
@@ -19,9 +17,7 @@ export function OneCServices() {
           <span className="kicker">БЕРЁМ И НЕБОЛЬШИЕ ЗАДАЧИ</span>
           <h3 id="one-c-title">Доработки 1С</h3>
           <p>Можно начать с одного отчёта или обработки. Опишите задачу и укажите конфигурацию 1С — согласуем объём, стоимость и срок до начала работ.</p>
-          <a className="button" href={contactHref}>
-            Обсудить задачу по 1С <ArrowUpRight size={17} aria-hidden="true" />
-          </a>
+          <ContactFormButton label="Обсудить задачу по 1С" topic="1c" />
         </div>
         <ul className={styles.services}>
           {services.map((service) => (
