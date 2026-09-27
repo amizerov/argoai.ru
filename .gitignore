@@ -40,3 +40,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local speech service and browser checks
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.models/
+.test-artifacts/
+test-results/
+playwright-report/

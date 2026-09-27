@@ -1,0 +1,26 @@
+[Unit]
+Description=ARGO Transcribe local speech service
+After=network.target
+
+[Service]
+Type=simple
+User=cloud
+Group=cloud
+# Replace this checkout path in all entries before installing.
+WorkingDirectory=/home/cloud/projects/NextJS/argoai.ru/argoai/services/transcribe
+EnvironmentFile=/home/cloud/projects/NextJS/argoai.ru/argoai/services/transcribe/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=HF_HOME=/home/cloud/projects/NextJS/argoai.ru/argoai/services/transcribe/.models/hf-cache
+ExecStart=/home/cloud/projects/NextJS/argoai.ru/argoai/services/transcribe/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100 --workers 1 --timeout-graceful-shutdown 3600
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=3610
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/cloud/projects/NextJS/argoai.ru/argoai/services/transcribe/.models
+
+[Install]
+WantedBy=multi-user.target

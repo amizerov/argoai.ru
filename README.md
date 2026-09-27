@@ -113,7 +113,26 @@ https://myaccount.google.com/apppasswords и замените `GMAIL_APP_PASSWOR
 node --experimental-strip-types --test tests/contact.test.mjs
 ```
 
-## Learn More
+## ARGO Transcribe
+
+Страница `/transcribe` добавляет локальное распознавание аудио и видео с таймкодами,
+плеером и экспортом TXT/SRT/VTT. На главной — компактный блок сервиса, в шапке — «Инструменты».
+Распознавание выполняет отдельный Python-процесс на `127.0.0.1:8100`; браузер обращается
+к Next.js `/api/transcribe`. Whisper внутри процесса Next.js не запускается.
+
+Полная инструкция по Ubuntu, CPU/CUDA, env, PM2, Nginx, systemd и проверкам curl:
+[services/transcribe/README.md](services/transcribe/README.md).
+Примеры развёртывания: `deploy/argo-transcribe.service` и
+`deploy/transcribe-nginx.conf.example`. Они не устанавливаются автоматически.
+
+Проверенные сценарии: настоящие русские WAV/MP3/MP4 на CPU (`tiny` для smoke-теста),
+выгрузка трёх форматов, копирование, перемотка по таймкодам, размеры 1920/1440/1024/768/390.
+Автоматизация браузерной проверки: `node tests/transcribe.browser.mjs` — ожидает работающий
+Next.js на `http://localhost:3001`, FastAPI и локальный файл `.test-artifacts/speech-ru.wav`.
+URL можно заменить переменной `TRANSCRIBE_TEST_URL`, канал браузера — `PLAYWRIGHT_CHANNEL`.
+Для ручной проверки достаточно своей записи через `/transcribe`.
+
+## Next.js resources
 
 To learn more about Next.js, take a look at the following resources:
 

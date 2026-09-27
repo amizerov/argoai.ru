@@ -13,6 +13,11 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "public/chat-popup-widget/dist/**",
+    "services/transcribe/.venv/**",
+    "services/transcribe/.models/**",
+    "**/.test-artifacts/**",
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
   ]),
 ]);
 

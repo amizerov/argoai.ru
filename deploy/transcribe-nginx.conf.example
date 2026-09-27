@@ -1,0 +1,28 @@
+# Add in the nginx http {} context (once).
+limit_req_zone $binary_remote_addr zone=argo_transcribe:10m rate=2r/m;
+
+# Add inside the existing HTTPS server {} for argoai.ru.
+# This is a snippet, not a replacement for the site's existing nginx config.
+location = /api/transcribe {
+    # 500 MiB file + multipart overhead. Change with MAX_UPLOAD_SIZE_MB.
+    client_max_body_size 501m;
+    client_body_timeout 120s;
+    limit_req zone=argo_transcribe burst=2 nodelay;
+    limit_req_status 429;
+
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    gzip off;
+    proxy_read_timeout 3700s;
+    proxy_send_timeout 3700s;
+    send_timeout 3700s;
+}
+
+# Do NOT expose or proxy port 8100 publicly.
+# Keep the existing location / proxy and /chat-popup-widget/ static location.
