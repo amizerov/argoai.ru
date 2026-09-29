@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     whisper_device: Literal["cpu", "cuda"] = "cpu"
     whisper_compute_type: str = "int8"
     whisper_cpu_threads: int = Field(default=4, ge=1)
+    whisper_beam_size: int = Field(default=5, ge=1, le=10)
     whisper_model_dir: Path | None = None
     whisper_download_root: Path = Path(__file__).parents[1] / ".models"
     transcribe_max_concurrent: int = Field(default=1, ge=1, le=8)

@@ -19,10 +19,11 @@ export function TranscribeClient({ maxUploadMB }: { maxUploadMB: number }) {
   const [file, setFile] = useState<File | null>(null);
   const [media, setMedia] = useState<{ url: string; video: boolean; playable: boolean } | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState("ru");
   const [dragging, setDragging] = useState(false);
   const [stage, setStage] = useState<Stage | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [lastServerEvent, setLastServerEvent] = useState<number | null>(null);
   const [progress, setProgress] = useState<TranscribeProgress | null>(null);
   const [result, setResult] = useState<Transcript | null>(null);
   const [completedAt, setCompletedAt] = useState<Date | null>(null);
@@ -30,7 +31,10 @@ export function TranscribeClient({ maxUploadMB }: { maxUploadMB: number }) {
   const [tab, setTab] = useState(0);
   const [copyStatus, setCopyStatus] = useState("");
   const busy = stage !== null;
-  const percent = stage === "formatting" ? 100 : stage === "transcribing" && progress
+  const waitingForFirst = stage === "transcribing" && (!progress || progress.processed_seconds === 0);
+  const statusLabel = waitingForFirst ? "Распознаём первый фрагмент" : stage ? labels[stage] : "";
+  const serverSilence = lastServerEvent === null ? elapsed : Math.max(0, elapsed - lastServerEvent);
+  const percent = stage === "formatting" ? 100 : stage === "transcribing" && progress && !waitingForFirst
     ? Math.min(99, Math.floor(progress.processed_seconds / progress.duration * 100)) : null;
   useEffect(() => () => { controller.current?.abort(); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
   useEffect(() => {
@@ -57,13 +61,15 @@ export function TranscribeClient({ maxUploadMB }: { maxUploadMB: number }) {
   async function transcribe() {
     if (!file || controller.current) return;
     const abort = new AbortController(); controller.current = abort;
-    startTime.current = Date.now(); setElapsed(0); setProgress(null); setStage("uploading"); setError(""); setResult(null); setCopyStatus("");
+    startTime.current = Date.now(); setElapsed(0); setLastServerEvent(null); setProgress(null); setStage("uploading"); setError(""); setResult(null); setCopyStatus("");
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const form = new FormData(); form.set("file", file); if (language) form.set("language", language);
       const response = await fetch("/api/transcribe", { method: "POST", body: form, signal: abort.signal, headers: { Accept: "application/x-ndjson" } });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (response.status === 413) throw new Error(typeof body.error === "string" ? body.error
+          : "Сервер отклонил файл из-за ограничения размера загрузки. Попробуйте файл меньшего размера.");
         throw new Error(typeof body.error === "string" ? body.error : "Не удалось загрузить файл. Попробуйте позже.");
       }
       if (!response.body) throw new Error("Соединение с сервисом прервано.");
@@ -77,6 +83,9 @@ export function TranscribeClient({ maxUploadMB }: { maxUploadMB: number }) {
         while ((newline = pending.indexOf("\n")) >= 0) {
           const line = pending.slice(0, newline); pending = pending.slice(newline + 1); if (!line.trim()) continue;
           const event = JSON.parse(line);
+          if (event.type === "heartbeat" || event.type === "stage" || isTranscribeProgress(event)) {
+            setLastServerEvent(Math.floor((Date.now() - startTime.current) / 1000));
+          }
           if (event.type === "stage" && Object.hasOwn(labels, event.stage)) setStage(event.stage);
           if (isTranscribeProgress(event)) setProgress((previous) => previous && previous.duration === event.duration
             ? { ...event, processed_seconds: Math.max(previous.processed_seconds, event.processed_seconds) } : event);
@@ -116,20 +125,29 @@ export function TranscribeClient({ maxUploadMB }: { maxUploadMB: number }) {
         <div className={styles.fileInfo}><FileAudio aria-hidden="true" /><div><strong>{file.name}</strong><span>{(file.size / 1024 / 1024).toFixed(1)} МБ · {mediaExtension(file.name).toUpperCase()}{duration !== null ? ` · ${timestamp(duration)}` : ""}</span></div></div>
         <label className={styles.language}>Язык записи<select value={language} disabled={busy} onChange={(event) => setLanguage(event.target.value)}>
           <option value="">Определить автоматически</option><option value="ru">Русский</option><option value="en">Английский</option><option value="de">Немецкий</option><option value="fr">Французский</option><option value="es">Испанский</option><option value="zh">Китайский</option>
-        </select></label>
+        </select><small>Выберите язык записи, чтобы пропустить его автоопределение.</small></label>
         {!busy && <button type="button" className="button" onClick={transcribe}>Начать расшифровку <span aria-hidden="true">↗</span></button>}
       </div>}
     </>}
     {busy && <div className={styles.progress} aria-busy="true">
-      <div className={styles.progressHead}><strong role="status">{labels[stage]}{percent !== null && ` · ${percent}%`}</strong><span><Clock3 size={15} /> Прошло {timestamp(elapsed)}</span></div>
-      <div className={`${styles.progressTrack} ${percent === null ? styles.waiting : ""}`} role="progressbar" aria-label={labels[stage]}
+      <div className={styles.progressHead}><strong role="status">{statusLabel}{percent !== null && ` · ${percent}%`}</strong><span><Clock3 size={15} /> Прошло {timestamp(elapsed)}</span></div>
+      <div className={`${styles.progressTrack} ${percent === null ? styles.waiting : ""}`} role="progressbar" aria-label={statusLabel}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}
-        aria-valuetext={percent === null ? labels[stage] : `${percent}%${progress ? `, обработано ${timestamp(progress.processed_seconds)} из ${timestamp(progress.duration)}` : ""}`}>
+        aria-valuetext={percent === null ? statusLabel : `${percent}%${progress ? `, обработано ${timestamp(progress.processed_seconds)} из ${timestamp(progress.duration)}` : ""}`}>
         <div className={styles.progressFill} style={percent !== null ? { width: `${percent}%` } : undefined} />
       </div>
-      {progress && (stage === "transcribing" || stage === "formatting") && <p className={styles.progressDetail}>Обработано {timestamp(progress.processed_seconds)} из {timestamp(progress.duration)} записи</p>}
+      {progress && (stage === "transcribing" || stage === "formatting") && <p className={styles.progressDetail}>{waitingForFirst
+        ? `Длительность записи: ${timestamp(progress.duration)}. Текст ещё не получен.`
+        : `Обработано ${timestamp(progress.processed_seconds)} из ${timestamp(progress.duration)} записи`}</p>}
+      {lastServerEvent !== null && <p className={styles.progressDetail}>{serverSilence >= 30
+        ? `Нет новых сообщений от сервера ${serverSilence} с. Соединение может задерживаться.`
+        : `Соединение с сервером активно · последнее сообщение ${serverSilence} с назад`}</p>}
       <ol>{steps.map((step, i) => <li key={step} className={steps.indexOf(stage) >= i || (stage === "queued" && i === 0) ? styles.activeStep : ""}>{String(i + 1).padStart(2, "0")} {labels[step]}</li>)}</ol>
-      <p>{stage === "transcribing" ? "Прогресс обновляется после каждого распознанного фрагмента. Первый фрагмент может занять больше времени." : stage === "queued" ? "Запись в очереди. Распознавание начнётся, когда освободится сервер." : "Дождитесь результата на этой странице."}</p>
+      <p>{stage === "transcribing"
+        ? elapsed >= 30 && (!progress || progress.processed_seconds === 0)
+          ? "Ожидаем первый распознанный фрагмент. Даже короткая запись может обрабатываться несколько минут. Текст появится после завершения — дождитесь результата на этой странице."
+          : "Прогресс обновляется после каждого распознанного фрагмента. Для короткой записи текст может появиться сразу целиком."
+        : stage === "queued" ? "Запись в очереди. Распознавание начнётся, когда освободится сервер." : "Дождитесь результата на этой странице."}</p>
       <button type="button" className={styles.secondary} onClick={() => controller.current?.abort()}>Отменить</button>
     </div>}
     {error && <p className={styles.error} role="alert">{error}</p>}

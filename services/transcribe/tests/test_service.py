@@ -152,9 +152,10 @@ def test_format_whitelist():
 
 
 @pytest.mark.parametrize("ends", [[10, 8, 45], []])
-def test_progress_streams_before_completion_and_covers_trailing_silence(tmp_path, ends):
+@pytest.mark.parametrize("beam", [1, 5])
+def test_progress_streams_before_completion_and_covers_trailing_silence(tmp_path, ends, beam):
     engine = Transcriber.__new__(Transcriber)
-    engine.settings = Settings(_env_file=None)
+    engine.settings = Settings(_env_file=None, whisper_beam_size=beam)
     engine.normalize = lambda source, target: 60.0
     events = []
 
@@ -166,8 +167,12 @@ def test_progress_streams_before_completion_and_covers_trailing_silence(tmp_path
             yield SimpleNamespace(start=0, end=end, text="Тест")
         assert not any(e.get("processed_seconds") == 60 for e in events)
 
-    engine.model = SimpleNamespace(transcribe=lambda *args, **kwargs: (
-        segments(), SimpleNamespace(language="ru", language_probability=1)))
+    def transcribe(*args, **kwargs):
+        assert kwargs["beam_size"] == beam
+        assert kwargs["language"] == "ru"
+        return segments(), SimpleNamespace(language="ru", language_probability=1)
+
+    engine.model = SimpleNamespace(transcribe=transcribe)
     result = engine.run(tmp_path / "test.wav", "ru", events.append, threading.Event())
     progress = [e for e in events if e["type"] == "progress"]
     positions = [e["processed_seconds"] for e in progress]

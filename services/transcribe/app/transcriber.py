@@ -101,7 +101,7 @@ class Transcriber:
         processed = 0.0
         emit({"type": "progress", "processed_seconds": processed, "duration": duration})
         segments, info = self.model.transcribe(
-            str(source.parent / "audio.wav"), language=language, beam_size=5,
+            str(source.parent / "audio.wav"), language=language, beam_size=self.settings.whisper_beam_size,
             vad_filter=True, condition_on_previous_text=False,
         )
         output = []

@@ -9,6 +9,7 @@ try {
     const original = window.fetch;
     window.fetch = (url, options) => {
       if (url !== "/api/transcribe") return original(url, options);
+      if (window.rejectUploadTest) return Promise.resolve(new Response("<h1>413 Request Entity Too Large</h1>", { status: 413 }));
       return Promise.resolve(new Response(new ReadableStream({
         start(controller) {
           window.emitProgressTestEvent = (event) => controller.enqueue(new TextEncoder().encode(JSON.stringify(event) + "\n"));
@@ -18,7 +19,9 @@ try {
     };
   });
   await page.goto(`${base}/transcribe`);
+  await page.clock.install();
   await page.locator('input[type="file"]').setInputFiles({ name: "test.wav", mimeType: "audio/wav", buffer: Buffer.from("test") });
+  await expect(page.getByRole("combobox")).toHaveValue("ru");
   await page.getByRole("button", { name: "Начать расшифровку" }).click();
   const bar = page.getByRole("progressbar");
   await expect(bar).toBeVisible();
@@ -28,7 +31,14 @@ try {
   await expect(page.getByRole("status")).toHaveText("Ожидаем свободный слот");
   await emit({ type: "stage", stage: "transcribing" });
   await emit({ type: "progress", processed_seconds: 0, duration: 168 });
-  await expect(bar).toHaveAttribute("aria-valuenow", "0");
+  assert.equal(await bar.getAttribute("aria-valuenow"), null);
+  await expect(page.getByRole("status")).toHaveText("Распознаём первый фрагмент");
+  await page.clock.fastForward(31000);
+  await expect(page.getByText("Ожидаем первый распознанный фрагмент.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Нет новых сообщений от сервера", { exact: false })).toBeVisible();
+  await emit({ type: "heartbeat" });
+  await expect(page.getByText("Соединение с сервером активно", { exact: false })).toBeVisible();
+  assert.equal(await bar.getAttribute("aria-valuenow"), null);
   await emit({ type: "progress", processed_seconds: 70, duration: 168 });
   await expect(bar).toHaveAttribute("aria-valuenow", "41");
   await expect(page.getByText("Обработано 00:01:10 из 00:02:48 записи")).toBeVisible();
@@ -54,6 +64,10 @@ try {
   assert.equal(await bar.getAttribute("aria-valuenow"), null);
   await expect(page.getByText("Обработано 00:02:48 из 00:02:48 записи")).toHaveCount(0);
   await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect(bar).toHaveCount(0);
+  await page.evaluate(() => { window.rejectUploadTest = true; });
+  await page.getByRole("button", { name: "Начать расшифровку" }).click();
+  await expect(page.getByRole("region", { name: "Расшифровка записи" }).getByRole("alert")).toContainText("ограничения размера загрузки");
   await expect(bar).toHaveCount(0);
   console.log("Progress browser checks passed: stages, percentages, timestamps, mobile, completion, retry, cancellation.");
 } finally {
